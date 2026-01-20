@@ -163,6 +163,10 @@ function handleChatMutations(mutations: MutationRecord[]) {
         break
       }
     }
+    // Fallback: If no container HAS the elements, use the primary container to allow "empty" state reporting
+    if (!targetContainer && potentialContainers.length > 0) {
+      targetContainer = potentialContainers[0]
+    }
   }
 
   // If we still didn't find the container or selector, we can't extract anything.
@@ -174,7 +178,6 @@ function handleChatMutations(mutations: MutationRecord[]) {
   const rawElements = Array.from(
     targetContainer.querySelectorAll(activeUserTurnSelector),
   ) as HTMLElement[]
-  if (rawElements.length === 0) return
 
   // 4. Filter Top Level (Avoid caching nested duplicates)
   const uniqueElements = filterTopLevel(rawElements)

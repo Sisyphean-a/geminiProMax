@@ -41,7 +41,7 @@ interface TimelineItem {
 }
 
 const items = ref<TimelineItem[]>([])
-const isCollapsed = ref(false)
+const isCollapsed = ref(true) // 默认折叠
 const activeItemId = ref<string>('')
 
 const toggleCollapse = () => {
@@ -52,14 +52,24 @@ const scrollToItem = (id: string) => {
   activeItemId.value = id
   const element = document.getElementById(id)
   if (element) {
-    element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    element.scrollIntoView({ behavior: 'smooth', block: 'start' })
     // Highlight effect on the element itself could be dispatched here
   }
 }
 
 // Exposed API for parent content-script
 const updateItems = (newItems: TimelineItem[]) => {
+  const wasEmpty = items.value.length === 0
   items.value = newItems
+
+  // 1. 如果变为空列表，自动折叠
+  if (newItems.length === 0) {
+    isCollapsed.value = true
+  }
+  // 2. 如果是从“无”到“有”，或者用户希望它出现时，自动展开
+  else if (wasEmpty && newItems.length > 0) {
+    isCollapsed.value = false
+  }
 }
 
 defineExpose({ updateItems })
