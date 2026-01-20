@@ -75,7 +75,7 @@ function observeForContent(thoughtsRoot: HTMLElement): void {
     }
     let contentDiv = thoughtsRoot.querySelector('div[data-test-id="thoughts-content"]')
     if (!contentDiv) contentDiv = thoughtsRoot.querySelector('.mat-expansion-panel-body')
-    let headerBtn =
+    const headerBtn =
       thoughtsRoot.querySelector('button[data-test-id="thoughts-header-button"]') ||
       thoughtsRoot.querySelector('button[aria-label*="thoughts"]')
     if (contentDiv && headerBtn) {

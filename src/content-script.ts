@@ -23,7 +23,7 @@ function init() {
   // 2. 设置全局 MutationObserver
   const observer = new MutationObserver((mutations) => {
     try {
-      handleChatMutations(mutations)
+      handleChatMutations()
       handleThoughtMutations(mutations)
       setupAutosaveObserver()
     } catch (e) {
@@ -37,7 +37,7 @@ function init() {
   }
 
   // 3. 初始扫描（处理页面已有内容）
-  handleChatMutations([])
+  handleChatMutations()
   setupAutosaveObserver()
 }
 

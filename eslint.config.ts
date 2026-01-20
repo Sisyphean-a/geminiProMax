@@ -11,10 +11,15 @@ import skipFormatting from '@vue/eslint-config-prettier/skip-formatting'
 export default defineConfigWithVueTs(
   {
     name: 'app/files-to-lint',
-    files: ['**/*.{vue,ts,mts,tsx}'],
+    files: ['**/*.{vue,ts,mts,tsx,js}'],
   },
 
-  globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**']),
+  globalIgnores([
+    '**/dist/**',
+    '**/dist-ssr/**',
+    '**/coverage/**',
+    '**/*.vue.js', // Vue 编译器生成的文件
+  ]),
 
   ...pluginVue.configs['flat/essential'],
   vueTsConfigs.recommended,

@@ -24,12 +24,12 @@ async function translateText(text: string): Promise<string> {
   const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=zh-CN&dt=t&q=${encodeURIComponent(text)}`
 
   const response = await fetch(url)
-  const data = await response.json()
+  const data = (await response.json()) as unknown
 
   // Data structure: [[["Translated Text", "Source Text", ...], ...], ...]
   // We need to join the parts if it was split
-  if (data && data[0]) {
-    return data[0].map((item: any) => item[0]).join('')
+  if (Array.isArray(data) && Array.isArray(data[0])) {
+    return (data[0] as Array<[string, ...unknown[]]>).map((item) => item[0]).join('')
   }
   return text
 }

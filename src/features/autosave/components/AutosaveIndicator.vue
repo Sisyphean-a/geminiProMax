@@ -23,19 +23,23 @@ const hasDraft = ref(false)
 const STORAGE_KEY = 'gemini_last_draft_backup'
 
 onMounted(async () => {
-  const checkDraft = async () => {
+  const checkDraft = () => {
     if (!chrome.runtime?.id) return
-    try {
-      const result = await chrome.storage.local.get(STORAGE_KEY)
-      const draft = result[STORAGE_KEY]
-      if (draft) {
-        const inputEl = document.querySelector(props.inputSelector) as HTMLElement
-        const currentText = inputEl ? inputEl.innerText.trim() : 'NOT_FOUND'
-        hasDraft.value = inputEl && !currentText
-      } else {
-        hasDraft.value = false
-      }
-    } catch (e) {}
+    chrome.storage.local
+      .get(STORAGE_KEY)
+      .then((result) => {
+        const draft = result[STORAGE_KEY]
+        if (draft) {
+          const inputEl = document.querySelector(props.inputSelector) as HTMLElement
+          const currentText = inputEl ? inputEl.innerText.trim() : 'NOT_FOUND'
+          hasDraft.value = inputEl && !currentText
+        } else {
+          hasDraft.value = false
+        }
+      })
+      .catch(() => {
+        // 忽略存储错误
+      })
   }
   checkDraft()
   setInterval(checkDraft, 1000)
@@ -49,9 +53,9 @@ const restoreDraft = async () => {
     inputEl.innerText = text as string
     inputEl.dispatchEvent(new Event('input', { bubbles: true }))
     inputEl.focus()
-    try {
-      await navigator.clipboard.writeText(text as string)
-    } catch (err) {}
+    await navigator.clipboard.writeText(text as string).catch(() => {
+      // 忽略剪贴板错误
+    })
     hasDraft.value = false
   }
 }

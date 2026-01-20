@@ -101,12 +101,16 @@ function setupPanelObserver() {
  */
 function scheduleRestoreTranslation() {
   if ('requestIdleCallback' in window) {
-    ;(window as any).requestIdleCallback(
+    ;(
+      window as Window & {
+        requestIdleCallback: (callback: () => void, options?: { timeout: number }) => number
+      }
+    ).requestIdleCallback(
       () => restoreTranslation(),
       { timeout: 500 }, // 最多等待 500ms
     )
   } else {
-    // 降级：使用 setTimeout
+    // 降级:使用 setTimeout
     setTimeout(restoreTranslation, 0)
   }
 }

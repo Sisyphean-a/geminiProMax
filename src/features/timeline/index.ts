@@ -79,7 +79,7 @@ export function enableTimeline(): void {
 /**
  * 处理聊天区域的 DOM 变化，更新 Timeline
  */
-export function handleChatMutations(mutations: MutationRecord[]): void {
+export function handleChatMutations(): void {
   let targetContainer: HTMLElement | null = null
 
   // 发现阶段：找到合适的选择器
@@ -135,7 +135,9 @@ export function handleChatMutations(mutations: MutationRecord[]): void {
     return { id, text: summary }
   })
 
-  if (timelineInstance && (timelineInstance as any).updateItems) {
-    ;(timelineInstance as any).updateItems(items)
+  if (timelineInstance && 'updateItems' in timelineInstance) {
+    ;(
+      timelineInstance as { updateItems: (items: { id: string; text: string }[]) => void }
+    ).updateItems(items)
   }
 }

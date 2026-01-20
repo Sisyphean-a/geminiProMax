@@ -1,4 +1,3 @@
-// @ts-ignore
 import cssContent from '../styles/shadow.css?inline'
 
 /**
