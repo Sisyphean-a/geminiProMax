@@ -7,7 +7,7 @@
 
 <script setup lang="ts">
 import { ref, PropType } from 'vue'
-import { extractTextNodes } from '../utils/domUtils'
+import { extractTextNodes } from '../../../shared/utils/domUtils'
 
 const props = defineProps({
   rootSelector: {

@@ -6,47 +6,47 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted } from 'vue'
 
 const props = defineProps({
   inputSelector: {
     type: String,
-    required: true
-  }
-});
+    required: true,
+  },
+})
 
-const hasDraft = ref(false);
-const STORAGE_KEY = 'gemini_draft_content';
+const hasDraft = ref(false)
+const STORAGE_KEY = 'gemini_draft_content'
 
 onMounted(async () => {
-  const result = await chrome.storage.local.get(STORAGE_KEY);
+  const result = await chrome.storage.local.get(STORAGE_KEY)
   if (result[STORAGE_KEY]) {
     // Check if input is empty
-    const inputEl = document.querySelector(props.inputSelector) as HTMLElement;
+    const inputEl = document.querySelector(props.inputSelector) as HTMLElement
     if (inputEl && !inputEl.innerText.trim()) {
-      hasDraft.value = true;
+      hasDraft.value = true
     }
   }
-});
+})
 
 const restoreDraft = async () => {
-  const result = await chrome.storage.local.get(STORAGE_KEY);
-  const text = result[STORAGE_KEY];
-  
-  const inputEl = document.querySelector(props.inputSelector) as HTMLElement;
+  const result = await chrome.storage.local.get(STORAGE_KEY)
+  const text = result[STORAGE_KEY]
+
+  const inputEl = document.querySelector(props.inputSelector) as HTMLElement
   if (inputEl && text) {
     // 1. Set text
-    inputEl.innerText = text;
-    
+    inputEl.innerText = text as string
+
     // 2. Dispatch input event to wake up Angular
-    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
-    
+    inputEl.dispatchEvent(new Event('input', { bubbles: true }))
+
     // 3. Focus
-    inputEl.focus();
-    
-    hasDraft.value = false;
+    inputEl.focus()
+
+    hasDraft.value = false
   }
-};
+}
 </script>
 
 <style scoped>
@@ -61,7 +61,7 @@ const restoreDraft = async () => {
   border-radius: 12px;
   cursor: pointer;
   z-index: 1000;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   display: flex;
   align-items: center;
   gap: 4px;

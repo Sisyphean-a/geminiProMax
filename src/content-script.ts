@@ -1,10 +1,10 @@
 import { createApp } from 'vue'
 import type { ComponentPublicInstance } from 'vue'
-import Timeline from './components/Timeline.vue'
-import TranslationWidget from './components/TranslationWidget.vue'
-import AutosaveIndicator from './components/AutosaveIndicator.vue'
+import Timeline from './features/timeline/components/TimelineWidget.vue'
+import TranslationWidget from './features/translation/components/TranslationWidget.vue'
+import AutosaveIndicator from './features/autosave/components/AutosaveIndicator.vue'
 // @ts-ignore
-import cssContent from './styles/shadow.css?inline'
+import cssContent from './shared/styles/shadow.css?inline'
 
 console.log('Gemini Pro Max: Content Script Loaded [v3 Observer Refactor]')
 
@@ -58,10 +58,13 @@ function injectStyles(shadowRoot: ShadowRoot) {
 function initTimeline() {
   const container = document.createElement('div')
   container.id = 'gemini-promax-timeline-root'
-  container.style.position = 'absolute'
+  container.style.position = 'fixed' // Changed to fixed
   container.style.top = '0'
   container.style.left = '0'
-  container.style.zIndex = '9999'
+  container.style.width = '0' // Zero width
+  container.style.height = '0' // Zero height
+  container.style.overflow = 'visible' // Allow children to be seen
+  container.style.zIndex = '2147483647' // Max z-index
   container.style.pointerEvents = 'none'
   document.body.appendChild(container)
 

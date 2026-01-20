@@ -1,0 +1,275 @@
+/* Font Import */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+/* ================== Timeline Styles (Geeky Light Mode) ================== */
+.gemini-timeline-root {
+  /* Complete Reset */
+  all: initial;
+  box-sizing: border-box;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  width: 240px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 6px;
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  z-index: 2147483647;
+  transition:
+    width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  color: #1f2937;
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+}
+
+.gemini-timeline-root * {
+  box-sizing: border-box;
+}
+
+.gemini-timeline-root.collapsed {
+  width: 48px;
+  cursor: pointer;
+}
+
+.gemini-timeline-root.collapsed .timeline-body {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.gemini-timeline-root.collapsed .title {
+  display: none;
+}
+
+.timeline-header {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  background: rgba(250, 250, 250, 0.5);
+  cursor: pointer;
+  user-select: none;
+}
+
+.gemini-timeline-root.collapsed .timeline-header {
+  justify-content: center;
+  padding: 0;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+}
+
+.title {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #374151;
+}
+
+.toggle-btn {
+  color: #6b7280;
+  font-size: 16px;
+  transition: color 0.2s;
+}
+
+.timeline-header:hover .toggle-btn {
+  color: #111827;
+}
+
+.timeline-body {
+  flex: 1;
+  overflow: hidden;
+  transition: opacity 0.2s ease;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.5) 100%);
+}
+
+.scroll-container {
+  max-height: 500px;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.scroll-container::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll-container::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+}
+
+.scroll-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.timeline-entry {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 8px 12px 8px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-left: 2px solid transparent;
+}
+
+.timeline-entry:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.timeline-entry.active {
+  background: rgba(59, 130, 246, 0.05);
+  border-left-color: #3b82f6;
+}
+
+.entry-index {
+  font-size: 10px;
+  color: #9ca3af;
+  margin-right: 12px;
+  min-width: 16px;
+}
+
+.timeline-entry.active .entry-index {
+  color: #3b82f6;
+  font-weight: bold;
+}
+
+.entry-content {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.entry-text {
+  font-size: 11px;
+  color: #4b5563;
+}
+
+.timeline-entry:hover .entry-text {
+  color: #111827;
+}
+
+.timeline-entry.active .entry-text {
+  color: #111827;
+  font-weight: 600;
+}
+
+/* ================== Translator Button Styles ================== */
+.gemini-translate-btn {
+  margin-left: 10px;
+  background: transparent;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: 'Google Sans', sans-serif;
+  font-size: 12px;
+  color: #1a73e8;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  pointer-events: auto;
+}
+
+.gemini-translate-btn:hover {
+  background: #f1f3f4;
+}
+
+.gemini-translate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinner {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ================== Autosave Indicator Styles ================== */
+.autosave-indicator {
+  position: absolute;
+  bottom: 10px;
+  right: 60px;
+  font-size: 12px;
+  background: #e6f4ea;
+  color: #137333;
+  padding: 4px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.autosave-indicator:hover {
+  background: #ceead6;
+}
+
+/* ================== Dark Mode ================== */
+@media (prefers-color-scheme: dark) {
+  .gemini-timeline-root {
+    background: rgba(30, 31, 32, 0.95);
+    border-color: #444746;
+    color: #e3e3e3;
+  }
+  .timeline-header {
+    background: rgba(43, 44, 45, 0.8);
+  }
+  .timeline-entry:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .gemini-translate-btn {
+    color: #8ab4f8;
+    border-color: #5f6368;
+  }
+  .gemini-translate-btn:hover {
+    background: #303134;
+  }
+
+  .autosave-indicator {
+    background: #185abc;
+    color: #e8f0fe;
+  }
+  .autosave-indicator:hover {
+    background: #174ea6;
+  }
+}
