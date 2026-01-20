@@ -1,0 +1,144 @@
+/* Timeline Styles */
+.gemini-timeline {
+  position: fixed;
+  top: 100px;
+  right: 20px;
+  width: 200px;
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  font-family: 'Google Sans', sans-serif;
+  z-index: 9999;
+  overflow: hidden;
+  transition: width 0.3s ease;
+  color: #374151;
+  display: flex;
+  flex-direction: column;
+}
+
+.gemini-timeline.collapsed {
+  width: 40px;
+}
+
+.timeline-header {
+  padding: 12px;
+  background: #eef0f2;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}
+
+.timeline-content {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.timeline-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background 0.2s;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timeline-item:hover {
+  background: #e8eaed;
+  border-left-color: #1a73e8;
+}
+
+/* Translator Styles */
+.gemini-translate-btn {
+  margin-left: 10px;
+  background: transparent;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: 'Google Sans', sans-serif;
+  font-size: 12px;
+  color: #1a73e8;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  pointer-events: auto; /* Ensure clickable */
+}
+
+.gemini-translate-btn:hover {
+  background: #f1f3f4;
+}
+
+.gemini-translate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinner {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Autosave Styles */
+.autosave-indicator {
+  position: absolute;
+  bottom: 10px;
+  right: 60px;
+  font-size: 12px;
+  background: #e6f4ea;
+  color: #137333;
+  padding: 4px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.autosave-indicator:hover {
+  background: #ceead6;
+}
+
+/* Dark Mode */
+@media (prefers-color-scheme: dark) {
+  .gemini-timeline {
+    background: #1e1f20;
+    border-color: #444746;
+    color: #e3e3e3;
+  }
+  .timeline-header {
+    background: #2b2c2d;
+  }
+  .timeline-item:hover {
+    background: #3c4043;
+  }
+  
+  .gemini-translate-btn {
+    color: #8ab4f8;
+    border-color: #5f6368;
+  }
+  .gemini-translate-btn:hover {
+    background: #303134;
+  }
+
+  .autosave-indicator {
+    background: #185abc;
+    color: #e8f0fe;
+  }
+  .autosave-indicator:hover {
+    background: #174ea6;
+  }
+}

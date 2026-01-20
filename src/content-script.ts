@@ -1,220 +1,398 @@
-import { createApp } from 'vue';
-import type { ComponentPublicInstance } from 'vue';
-import Timeline from './components/Timeline.vue';
-import TranslationWidget from './components/TranslationWidget.vue';
-import AutosaveIndicator from './components/AutosaveIndicator.vue';
+import { createApp } from 'vue'
+import type { ComponentPublicInstance } from 'vue'
+import Timeline from './components/Timeline.vue'
+import TranslationWidget from './components/TranslationWidget.vue'
+import AutosaveIndicator from './components/AutosaveIndicator.vue'
+// @ts-ignore
+import cssContent from './styles/shadow.css?inline'
 
-console.log('Gemini Pro Max Content Script Loaded');
+console.log('Gemini Pro Max: Content Script Loaded [v3 Observer Refactor]')
 
 // --- Global State ---
-let timelineInstance: ComponentPublicInstance | null = null;
-const processedThoughtIds = new Set<string>();
+let timelineInstance: ComponentPublicInstance | null = null
+const activeThoughtObservers = new WeakMap<HTMLElement, MutationObserver>()
 
 // --- Initialization ---
 function init() {
+  console.log('Gemini Pro Max: Init...')
+
   // 1. Initialize Timeline
-  initTimeline();
-
-  // 2. Start Observers
-  const observer = new MutationObserver((mutations) => {
-    handleChatMutations(mutations);
-    handleThoughtMutations(mutations);
-  });
-
-  const chatContainer = document.querySelector('body'); 
-  // We identify changes effectively by watching body or a stable high level container
-  // because chat history container might be re-rendered.
-  if (chatContainer) {
-    observer.observe(chatContainer, { childList: true, subtree: true });
+  try {
+    initTimeline()
+  } catch (e) {
+    console.error('Gemini Pro Max: Timeline Init Error', e)
   }
 
-  // 3. Init Autosave (Input might already be there)
-  // We can try to finding it periodically or via observer
-  setupAutosave();
+  // 2. Global Observer
+  const observer = new MutationObserver((mutations) => {
+    try {
+      handleChatMutations(mutations)
+      handleThoughtMutations(mutations)
+    } catch (e) {
+      console.error('Gemini Pro Max: Global Mutation Error', e)
+    }
+  })
+
+  const body = document.body
+  if (body) {
+    observer.observe(body, { childList: true, subtree: true })
+  }
+
+  // Initial Scan
+  handleChatMutations([])
+  const thoughts = document.querySelectorAll('model-thoughts')
+  thoughts.forEach((el) => injectTranslator(el as HTMLElement))
+
+  // Setup Autosave (Observer-based instead of timeout)
+  setupAutosaveObserver()
+}
+
+// --- Helper: Inject Styles ---
+function injectStyles(shadowRoot: ShadowRoot) {
+  const style = document.createElement('style')
+  style.textContent = cssContent
+  shadowRoot.appendChild(style)
 }
 
 // --- Timeline Logic ---
 function initTimeline() {
-  const container = document.createElement('div');
-  container.id = 'gemini-promax-timeline-root';
-  container.style.position = 'absolute';
-  container.style.top = '0';
-  container.style.left = '0';
-  container.style.width = '0';
-  container.style.height = '0';
-  container.style.zIndex = '9999';
-  document.body.appendChild(container);
+  const container = document.createElement('div')
+  container.id = 'gemini-promax-timeline-root'
+  container.style.position = 'absolute'
+  container.style.top = '0'
+  container.style.left = '0'
+  container.style.zIndex = '9999'
+  container.style.pointerEvents = 'none'
+  document.body.appendChild(container)
 
-  const shadow = container.attachShadow({ mode: 'open' });
-  const appRoot = document.createElement('div');
-  shadow.appendChild(appRoot);
+  const shadow = container.attachShadow({ mode: 'open' })
+  injectStyles(shadow)
 
-  // Inject styles manually or via Vite? 
-  // Vite with CRXJS usually manages styles by injecting them into document head, 
-  // but for Shadow DOM we need to adopt them.
-  // For now, components use <style scoped> which Vite/Vue injects into the component's render function.
-  // However, we might need a reset or font style inheritance. 
-  // Google Sans is already on the page, so we inherit it if we don't isolate *too* much or re-declare it.
-  
-  const app = createApp(Timeline);
-  timelineInstance = app.mount(appRoot);
+  const appRoot = document.createElement('div')
+  appRoot.style.pointerEvents = 'auto'
+  shadow.appendChild(appRoot)
+
+  const app = createApp(Timeline)
+  timelineInstance = app.mount(appRoot)
+}
+
+// --- Timeline Logic ---
+
+// Selectors configuration
+const CANDIDATE_SELECTORS = [
+  // Priority 1: Angular specific
+  '.user-query-bubble-with-background',
+  '.user-query-bubble-container',
+  '.user-query-container',
+  '.query-text-line', // NEW: Discovered via Probe
+  'user-query-content .user-query-bubble-with-background',
+  // Priority 2: Attribute based
+  'div[aria-label="User message"]',
+  'article[data-author="user"]',
+  'article[data-turn="user"]',
+  '[data-message-author-role="user"]',
+  'div[role="listitem"][data-user="true"]',
+  // Priority 3: Legacy/Fallback
+  '.user-query',
+  'div[data-message-id]',
+]
+
+let activeUserTurnSelector = ''
+
+function normalizeText(text: string): string {
+  return text.normalize().trim()
+}
+
+function hashString(str: string): string {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = (hash << 5) - hash + char
+    hash = hash & hash
+  }
+  return Math.abs(hash).toString(16)
+}
+
+function filterTopLevel(elements: HTMLElement[]): HTMLElement[] {
+  const descendants = new Set<HTMLElement>()
+  // Simple O(N^2) check is sufficient for chat lists
+  for (let i = 0; i < elements.length; i++) {
+    const el = elements[i]
+    for (let j = 0; j < elements.length; j++) {
+      if (i !== j && elements[j].contains(el)) {
+        descendants.add(el)
+        break
+      }
+    }
+  }
+  return elements.filter((el) => !descendants.has(el))
 }
 
 function handleChatMutations(mutations: MutationRecord[]) {
-  // Check for new user queries
-  // Strategy: Scan the known container for items. 
-  // More robust: Re-scan the list whenever #chat-history-container changes.
-  
-  const historyContainer = document.querySelector('#chat-history-container');
-  if (!historyContainer) return;
+  // 1. Determine Container (Broad Search with Priority)
+  // We scan multiple potential roots to avoid getting trapped in the Sidebar (often named 'chat-history')
+  const potentialContainers = [
+    document.querySelector('main'), // Priority 1: Main content area
+    document.querySelector('#chat-history-container'), // Priority 2: Standard extension container
+    document.querySelector('div[class*="chat-history"]'), // Priority 3: Common class (risky, might be sidebar)
+    document.body, // Fallback
+  ].filter((c) => c !== null) as HTMLElement[]
 
-  // We optimize by debouncing or checking specific mutations, but for now let's just re-scan
-  // to ensure order and correctness.
-  
-  const queries = historyContainer.querySelectorAll('.user-query');
-  const items = Array.from(queries).map(query => {
-    // The ID is usually on a parent wrapper div of .user-query
-    // Structure: <div id="...?"> <div class="user-query"> ... </div> </div>
-    // Let's look for the closest parent with an ID
-    const parent = query.closest('div[id]');
-    const id = parent ? parent.id : '';
-    const contentEl = query.querySelector('.user-query-content');
-    const text = contentEl ? contentEl.textContent?.trim().slice(0, 15) || 'Query' : 'Query';
-    
-    return { id, text };
-  }).filter(item => item.id); // Filter out empty IDs
+  let targetContainer: HTMLElement | null = null
+
+  if (!activeUserTurnSelector) {
+    // Phase 1: Discovery
+    for (const container of potentialContainers) {
+      for (const sel of CANDIDATE_SELECTORS) {
+        if (container.querySelector(sel)) {
+          activeUserTurnSelector = sel
+          targetContainer = container
+          break
+        }
+      }
+      if (targetContainer) break
+    }
+  } else {
+    // Phase 2: Steady State - Find WHERE the active selector lives roughly
+    for (const container of potentialContainers) {
+      if (container.querySelector(activeUserTurnSelector)) {
+        targetContainer = container
+        break
+      }
+    }
+  }
+
+  // If we still didn't find the container or selector, we can't extract anything.
+  if (!targetContainer || !activeUserTurnSelector) {
+    return
+  }
+
+  // 3. Query Elements
+  const rawElements = Array.from(
+    targetContainer.querySelectorAll(activeUserTurnSelector),
+  ) as HTMLElement[]
+  if (rawElements.length === 0) return
+
+  // 4. Filter Top Level (Avoid caching nested duplicates)
+  const uniqueElements = filterTopLevel(rawElements)
+
+  // 5. Generate Items with Stable IDs
+  const items = uniqueElements.map((el, index) => {
+    // Content extraction
+    const contentEl = el.querySelector('.user-query-content') || el.querySelector('p') || el // Fallback to self
+
+    const rawText = contentEl.textContent || ''
+    const cleanText = normalizeText(rawText)
+    const summary = cleanText.slice(0, 20) || `Query ${index + 1}`
+
+    // Stable ID Generation
+    // Check for dataset cache
+    let id = el.dataset.promaxTurnId
+    if (!id) {
+      // Check for native ID
+      const nativeId = el.closest('[id]')?.id
+      if (nativeId && nativeId.length > 5) {
+        id = nativeId
+      } else {
+        // Generate Hash
+        const contentHash = hashString(cleanText + index) // Add index to differentiate identical queries if needed, or rely on dedupe?
+        // The reference analysis suggests 'text' + 'offset' dedupe.
+        // For ID, let's use text hash + index to be safe but stable for *that* render order.
+        // Ideally just text hash if we want persistance across reloads for 'stars'.
+        // But identical text queries exist.
+        // Let's use `u-${hash}`.
+        id = `u-${hashString(cleanText)}`
+      }
+
+      // Cache it
+      el.dataset.promaxTurnId = id
+      if (!el.id) el.id = id // Ensure it has an ID for scrolling
+    }
+
+    return { id, text: summary }
+  })
 
   if (timelineInstance && (timelineInstance as any).updateItems) {
-    (timelineInstance as any).updateItems(items);
+    ;(timelineInstance as any).updateItems(items)
   }
 }
 
 // --- Translator Logic ---
 function handleThoughtMutations(mutations: MutationRecord[]) {
-  // Look for model-thoughts tags
+  // Check specifically for content div appearance
   for (const mutation of mutations) {
-    for (const node of mutation.addedNodes) {
-      if (node instanceof HTMLElement) {
-        // Check if node is model-thoughts or contains it
-        if (node.tagName?.toLowerCase() === 'model-thoughts') {
-          injectTranslator(node);
-        } else if (node.querySelectorAll) {
-          const thoughts = node.querySelectorAll('model-thoughts');
-          thoughts.forEach(injectTranslator);
-        }
-      }
-    }
-  }
-}
-
-function injectTranslator(el: Element) {
-  const thoughtsRoot = el as HTMLElement;
-  // Use a unique ID or flag to prevent double injection
-  if (thoughtsRoot.dataset.promaxTranslated) return;
-  thoughtsRoot.dataset.promaxTranslated = 'true';
-
-  // Find the header to inject the button
-  // Selectors: header is usually the first child or class looking like header
-  // User said: "In the header area... display thoughts button"
-  // Let's assume there is a header. We can append to it.
-  
-  // We need to wait for the header to exist? MutationObserver found it, so it should be there.
-  // Let's try to find a button-like area.
-  // The structure is often: <model-thoughts> <div> <button data-test-id="thoughts-header-button">
-  
-  const headerBtn = thoughtsRoot.querySelector('button[data-test-id="thoughts-header-button"]');
-  if (headerBtn && headerBtn.parentElement) {
-    const container = document.createElement('div');
-    container.style.display = 'inline-block';
-    container.style.marginLeft = '8px';
-    headerBtn.parentElement.appendChild(container); // Append NEXT to the header button's parent (or inside it?)
-    // If headerBtn is inside a flex container, appending to parent works.
-    
-    const shadow = container.attachShadow({ mode: 'open' });
-    const appRoot = document.createElement('div');
-    shadow.appendChild(appRoot);
-
-    // We pass the selector for the content.
-    // The content ID is usually linked or we can just find it relative to `thoughtsRoot`.
-    // Actually, passing the element PROPS is tricky across creating App, but we can pass a unique class/ID 
-    // or just rely on the component finding it relative to document (since we pass a selector string).
-    // The Component logic I wrote expects a QuerySelector string.
-    // So let's assign a unique ID to the content div if it doesn't have one, or use a data-attribute.
-    
-    const contentDiv = thoughtsRoot.querySelector('div[data-test-id="thoughts-content"]');
-    if (contentDiv) {
-      if (!contentDiv.id) {
-         contentDiv.id = 'thoughts-content-' + Math.random().toString(36).substr(2, 9);
-      }
-      
-      const app = createApp(TranslationWidget, {
-        contentSelector: '#' + contentDiv.id
-      });
-      app.mount(appRoot);
-    }
-  }
-}
-
-// --- Autosave Logic ---
-function setupAutosave() {
-  const inputSelector = 'div.rich-textarea > div[contenteditable="true"]';
-  
-  // Since input might be re-rendered, we need to re-attach if lost.
-  // Simple polling or Observer. Observer is better.
-  // But we already have a body observer.
-  
-  // Let's check if we have the indicator already.
-  const inputEl = document.querySelector(inputSelector);
-  if (inputEl) {
-    const parent = inputEl.parentElement; // .rich-textarea
-    if (parent && !parent.querySelector('.gemini-promax-autosave-host')) {
-       // Inject host
-       const host = document.createElement('div');
-       host.className = 'gemini-promax-autosave-host';
-       host.style.position = 'relative'; // Anchor for absolute positioning of indicator
-       // We want the indicator to be near the input. `parent` is usually relative.
-       // Let's append host to parent.
-       parent.appendChild(host);
-       
-       const shadow = host.attachShadow({ mode: 'open' });
-       const appRoot = document.createElement('div');
-       shadow.appendChild(appRoot);
-       
-       const app = createApp(AutosaveIndicator, {
-         inputSelector: inputSelector
-       });
-       app.mount(appRoot);
-       
-       // Autosave listeners
-       inputEl.addEventListener('input', debounce((e: any) => {
-         const text = (e.target as HTMLElement).innerText;
-         chrome.storage.local.set({ 'gemini_draft_content': text });
-       }, 1000));
-       
-       inputEl.addEventListener('keydown', (e: any) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-             // Clear draft on send
-             setTimeout(() => {
-                chrome.storage.local.remove('gemini_draft_content');
-             }, 100);
+    if (mutation.type === 'childList') {
+      mutation.addedNodes.forEach((node) => {
+        if (node instanceof HTMLElement) {
+          // Direct thoughts component
+          if (node.tagName === 'MODEL-THOUGHTS' || node.querySelector('model-thoughts')) {
+            const targets =
+              node.tagName === 'MODEL-THOUGHTS' ? [node] : node.querySelectorAll('model-thoughts')
+            targets.forEach((el) => injectTranslator(el as HTMLElement))
           }
-       });
+        }
+      })
     }
   }
+}
+
+function injectTranslator(thoughtsRoot: HTMLElement) {
+  // Stop if already mounted
+  if (thoughtsRoot.dataset.promaxWidgetMounted === 'true') return
+
+  // Search for header button
+  const headerBtn =
+    thoughtsRoot.querySelector('button[data-test-id="thoughts-header-button"]') ||
+    thoughtsRoot.querySelector('button[aria-label*="thoughts"]') ||
+    thoughtsRoot.querySelector('button[aria-label*="思路"]') ||
+    thoughtsRoot.querySelector('.mat-expansion-panel-header')
+
+  if (!headerBtn) {
+    // If we can't even find the header, this might be a very fresh DOM node.
+    // Observe it.
+    observeForContent(thoughtsRoot)
+    return
+  }
+
+  // Search for content div
+  let contentDiv = thoughtsRoot.querySelector('div[data-test-id="thoughts-content"]')
+  if (!contentDiv) contentDiv = thoughtsRoot.querySelector('.mat-expansion-panel-body')
+  if (!contentDiv && headerBtn.nextElementSibling)
+    contentDiv = headerBtn.nextElementSibling as HTMLElement
+
+  if (contentDiv) {
+    mountWidget(headerBtn as HTMLElement, contentDiv as HTMLElement, thoughtsRoot)
+  } else {
+    console.debug('Gemini Pro Max: Content div missing, attaching specific observer...')
+    observeForContent(thoughtsRoot)
+  }
+}
+
+function observeForContent(thoughtsRoot: HTMLElement) {
+  if (activeThoughtObservers.has(thoughtsRoot)) return // Already observing
+
+  const observer = new MutationObserver((mutations) => {
+    // Stop if we found it in this batch
+    if (thoughtsRoot.dataset.promaxWidgetMounted === 'true') {
+      observer.disconnect()
+      activeThoughtObservers.delete(thoughtsRoot)
+      return
+    }
+
+    // Check if content appeared
+    let contentDiv = thoughtsRoot.querySelector('div[data-test-id="thoughts-content"]')
+    if (!contentDiv) contentDiv = thoughtsRoot.querySelector('.mat-expansion-panel-body')
+
+    let headerBtn =
+      thoughtsRoot.querySelector('button[data-test-id="thoughts-header-button"]') ||
+      thoughtsRoot.querySelector('button[aria-label*="thoughts"]')
+
+    if (contentDiv && headerBtn) {
+      mountWidget(headerBtn as HTMLElement, contentDiv as HTMLElement, thoughtsRoot)
+      observer.disconnect()
+      activeThoughtObservers.delete(thoughtsRoot)
+    }
+  })
+
+  observer.observe(thoughtsRoot, { childList: true, subtree: true, attributes: true })
+  activeThoughtObservers.set(thoughtsRoot, observer)
+}
+
+function mountWidget(headerBtn: HTMLElement, contentDiv: HTMLElement, thoughtsRoot: HTMLElement) {
+  // Inject Button
+  const container = document.createElement('div')
+  container.style.display = 'inline-block'
+  container.style.marginLeft = '12px'
+  container.style.verticalAlign = 'middle'
+  container.onclick = (e) => e.stopPropagation()
+
+  if (headerBtn.parentElement) {
+    headerBtn.parentElement.insertBefore(container, headerBtn.nextSibling)
+  } else {
+    headerBtn.appendChild(container)
+  }
+
+  const shadow = container.attachShadow({ mode: 'open' })
+  injectStyles(shadow)
+
+  const appRoot = document.createElement('div')
+  shadow.appendChild(appRoot)
+
+  if (!thoughtsRoot.id) {
+    thoughtsRoot.id = 'gemini-thoughts-' + Math.random().toString(36).substr(2, 9)
+  }
+
+  const app = createApp(TranslationWidget, {
+    rootSelector: '#' + thoughtsRoot.id,
+  })
+  app.mount(appRoot)
+
+  thoughtsRoot.dataset.promaxWidgetMounted = 'true'
+}
+
+// --- Autosave Logic (Observer Based) ---
+function setupAutosaveObserver() {
+  const observer = new MutationObserver(() => {
+    const inputSelector = 'div.rich-textarea > div[contenteditable="true"]'
+    const inputEl = document.querySelector(inputSelector)
+
+    if (inputEl) {
+      const parent = inputEl.parentElement
+      if (parent && !parent.querySelector('.gemini-promax-autosave-host')) {
+        // Found it, inject!
+        injectAutosave(inputEl as HTMLElement, parent)
+      }
+    }
+  })
+
+  // Watch body for inputs appearing
+  observer.observe(document.body, { childList: true, subtree: true })
+}
+
+function injectAutosave(inputEl: HTMLElement, parent: HTMLElement) {
+  const host = document.createElement('div')
+  host.className = 'gemini-promax-autosave-host'
+  host.style.position = 'relative'
+  parent.appendChild(host)
+
+  const shadow = host.attachShadow({ mode: 'open' })
+  injectStyles(shadow)
+
+  const appRoot = document.createElement('div')
+  shadow.appendChild(appRoot)
+
+  const app = createApp(AutosaveIndicator, {
+    inputSelector: 'div.rich-textarea > div[contenteditable="true"]',
+  })
+  app.mount(appRoot)
+
+  inputEl.addEventListener(
+    'input',
+    debounce((e: any) => {
+      const text = (e.target as HTMLElement).innerText
+      chrome.storage.local.set({ gemini_draft_content: text })
+    }, 1000),
+  )
+
+  inputEl.addEventListener('keydown', (e: any) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      setTimeout(() => {
+        chrome.storage.local.remove('gemini_draft_content')
+      }, 100)
+    }
+  })
 }
 
 function debounce(func: Function, wait: number) {
-  let timeout: any;
-  return function(...args: any[]) {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
+  let timeout: any
+  return function (...args: any[]) {
+    clearTimeout(timeout)
+    timeout = setTimeout(() => func(...args), wait)
+  }
 }
 
-// Run init
-// Wait for body?
-if (document.body) {
-  init();
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init)
 } else {
-  window.addEventListener('DOMContentLoaded', init);
+  init()
 }

@@ -6,51 +6,67 @@
 </template>
 
 <script setup lang="ts">
-import { ref, PropType } from 'vue';
-import { extractTextNodes } from '../utils/domUtils';
+import { ref, PropType } from 'vue'
+import { extractTextNodes } from '../utils/domUtils'
 
 const props = defineProps({
-  contentSelector: {
+  rootSelector: {
     type: String,
-    required: true
-  }
-});
+    required: true,
+  },
+})
 
-const isTranslating = ref(false);
+const isTranslating = ref(false)
 
 const handleTranslate = async () => {
-  const contentEl = document.querySelector(props.contentSelector) as HTMLElement;
-  if (!contentEl) {
-    console.warn('Content element not found:', props.contentSelector);
-    return;
+  const rootEl = document.querySelector(props.rootSelector) as HTMLElement
+  if (!rootEl) {
+    console.error('Gemini Pro Max: Root element not found:', props.rootSelector)
+    return
   }
 
-  isTranslating.value = true;
+  // Find content dynamically at click time
+  let contentEl = rootEl.querySelector('div[data-test-id="thoughts-content"]') as HTMLElement
+  if (!contentEl) contentEl = rootEl.querySelector('.mat-expansion-panel-body') as HTMLElement
+
+  if (!contentEl) {
+    // Fallback: Try to find sibling of header
+    const headerBtn = rootEl.querySelector('button[data-test-id="thoughts-header-button"]')
+    if (headerBtn && headerBtn.nextElementSibling) {
+      contentEl = headerBtn.nextElementSibling as HTMLElement
+    }
+  }
+
+  if (!contentEl) {
+    console.error('Gemini Pro Max: Content element not found inside root')
+    return
+  }
+
+  isTranslating.value = true
 
   try {
-    const textNodes = extractTextNodes(contentEl);
-    const texts = textNodes.map(node => node.textContent || '');
-    
-    // Chunking might be needed for large content, keeping it simple for now
+    const textNodes = extractTextNodes(contentEl)
+    const texts = textNodes.map((node) => node.textContent || '')
+
     const response = await chrome.runtime.sendMessage({
       type: 'TRANSLATE_BATCH',
-      payload: texts
-    });
+      payload: texts,
+    })
 
     if (response && response.translatedTexts && response.translatedTexts.length === texts.length) {
       // Replace text nodes
       textNodes.forEach((node, index) => {
-        node.textContent = response.translatedTexts[index];
-      });
+        node.textContent = response.translatedTexts[index]
+      })
     } else {
-      console.error('Translation mismatch or error', response);
+      console.error('Translation mismatch or error', response)
     }
   } catch (e) {
-    console.error('Translation failed', e);
+    console.error('Translation failed', e)
   } finally {
-    isTranslating.value = false;
+    isTranslating.value = false
   }
-};
+}
 </script>
 
 <style scoped>
@@ -82,8 +98,12 @@ const handleTranslate = async () => {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (prefers-color-scheme: dark) {
