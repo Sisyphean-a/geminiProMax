@@ -1,0 +1,79 @@
+name: 发布版本
+
+on:
+  push:
+    tags:
+      - 'v*.*.*' # 匹配 v1.0.0, v2.1.3 等格式的标签
+
+jobs:
+  release:
+    name: 创建发布版本
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 需要写权限来创建 Release
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 运行类型检查
+        run: npm run type-check
+
+      - name: 构建项目
+        run: npm run build
+
+      - name: 创建扩展压缩包
+        run: |
+          cd dist
+          zip -r ../gemini-pro-max-${{ github.ref_name }}.zip .
+          cd ..
+
+      - name: 提取版本号
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: 生成更新日志
+        id: changelog
+        run: |
+          # 获取上一个标签
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [ -z "$PREV_TAG" ]; then
+            # 如果没有上一个标签,获取所有提交
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          else
+            # 获取两个标签之间的提交
+            CHANGELOG=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          fi
+
+          # 保存到文件
+          echo "## 更新内容" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "$CHANGELOG" >> CHANGELOG.md
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Gemini Pro Max v${{ steps.version.outputs.VERSION }}
+          body_path: CHANGELOG.md
+          files: |
+            gemini-pro-max-${{ github.ref_name }}.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 发布成功通知
+        run: |
+          echo "✅ 发布成功!"
+          echo "📦 版本: v${{ steps.version.outputs.VERSION }}"
+          echo "🔗 下载地址: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
