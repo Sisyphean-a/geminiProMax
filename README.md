@@ -1,48 +1,56 @@
-# geminiProMax
+# Gemini Pro Max // 浏览器扩展
 
-This template should help get you started developing with Vue 3 in Vite.
+极简、高效的 Google Gemini 交互增强工具。
 
-## Recommended IDE Setup
+## 核心功能
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+- **时间线 (Timeline)**：可视化对话历史，实现快速跳转与回顾。
+- **智能翻译 (Translate)**：对模型思维过程 (Thought) 及响应进行实时翻译。
+- **自动保存 (Autosave)**：强大的后台草稿持久化，防止内容丢失。
 
-## Recommended Browser Setup
+## 系统架构
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+```mermaid
+graph TD
+    UI[Gemini Web UI] <--> CS[Content Script / Vue 3]
+    CS <--> Features{核心功能模块}
+    Features --> TL[Timeline]
+    Features --> ST[Smart Translate]
+    Features --> AS[Autosave]
+    CS <--> BG[Background Service]
+    BG <--> Storage[(Local Storage)]
+```
 
-## Type Support for `.vue` Imports in TS
+## 技术栈
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
+- **内核**: Vue 3 + TypeScript
+- **打包**: Vite + [CRXJS](https://crxjs.dev/)
+- **状态**: Pinia
 
-## Customize configuration
+## 开发流程
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+### 初始化
 
-## Project Setup
-
-```sh
+```bash
 npm install
 ```
 
-### Compile and Hot-Reload for Development
+### 开发模式
 
-```sh
+```bash
 npm run dev
 ```
 
-### Type-Check, Compile and Minify for Production
+1. 打开 Chrome 扩展程序 (`chrome://extensions`)
+2. 开启 **开发者模式**
+3. 点击 **加载已解压的扩展程序**，选择项目中的 `dist` 目录。
 
-```sh
+### 生产构建
+
+```bash
 npm run build
 ```
 
-### Lint with [ESLint](https://eslint.org/)
+---
 
-```sh
-npm run lint
-```
+_Stay geek._
