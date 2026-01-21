@@ -1,12 +1,17 @@
 <template>
-  <button class="gemini-translate-btn" @click="handleTranslate" :disabled="isTranslating">
+  <button
+    v-show="shouldShowButton"
+    class="gemini-translate-btn"
+    @click="handleTranslate"
+    :disabled="isTranslating"
+  >
     <span v-if="isTranslating" class="spinner">⏳</span>
     <span v-else>Thinking Process Translate</span>
   </button>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { extractTextNodes } from '../../../shared/utils/domUtils'
 
 // ==================== 性能优化配置 ====================
@@ -51,12 +56,41 @@ const props = defineProps({
 
 const isTranslating = ref(false)
 const isTranslated = ref(false)
+const isFullyTranslated = ref(false) // 是否完全翻译（所有内容都已翻译）
+const isPanelExpanded = ref(true) // 默认为 true，避免初始闪烁
+
+/**
+ * 计算属性：是否应该显示翻译按钮
+ * 优先级：
+ * 1. 如果已完全翻译，隐藏
+ * 2. 如果正在翻译，显示 loading
+ * 3. 如果面板折叠，隐藏
+ * 4. 其他情况显示
+ */
+const shouldShowButton = computed(() => {
+  // 已完全翻译，隐藏按钮
+  if (isFullyTranslated.value) return false
+
+  // 正在翻译，显示 loading
+  if (isTranslating.value) return true
+
+  // 面板折叠，隐藏
+  if (!isPanelExpanded.value) return false
+
+  // 其他情况显示
+  return true
+})
 
 // 监视面板展开，自动恢复翻译
 let panelObserver: MutationObserver | null = null
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
+let stateCheckTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(() => {
+  // 延迟检查初始状态，等待 DOM 完全渲染
+  setTimeout(() => {
+    checkPanelState()
+  }, 100)
   setupPanelObserver()
 })
 
@@ -68,7 +102,60 @@ onUnmounted(() => {
   if (debounceTimer) {
     clearTimeout(debounceTimer)
   }
+  if (stateCheckTimer) {
+    clearTimeout(stateCheckTimer)
+  }
 })
+
+/**
+ * 检查面板是否展开
+ */
+function checkPanelState() {
+  const rootEl = document.querySelector(props.rootSelector) as HTMLElement
+  if (!rootEl) {
+    isPanelExpanded.value = false
+    return
+  }
+
+  // 优先检查 header 按钮的 aria-expanded 属性
+  const headerBtn =
+    rootEl.querySelector('button[data-test-id="thoughts-header-button"]') ||
+    rootEl.querySelector('button[aria-label*="thoughts"]') ||
+    rootEl.querySelector('button[aria-label*="思路"]') ||
+    rootEl.querySelector('.mat-expansion-panel-header')
+
+  if (headerBtn) {
+    const ariaExpanded = headerBtn.getAttribute('aria-expanded')
+
+    if (ariaExpanded !== null) {
+      isPanelExpanded.value = ariaExpanded === 'true'
+      return
+    }
+  }
+
+  // 方案2：检查内容元素的高度（折叠时高度很小，展开时高度很大）
+  const contentEl = getContentElement()
+  if (!contentEl) {
+    isPanelExpanded.value = false
+    return
+  }
+
+  const height = contentEl.offsetHeight
+  const MIN_EXPANDED_HEIGHT = 100 // 展开时内容高度应该大于 100px
+
+  isPanelExpanded.value = height > MIN_EXPANDED_HEIGHT
+}
+
+/**
+ * 防抖版本的状态检查
+ */
+function debouncedCheckPanelState() {
+  if (stateCheckTimer) clearTimeout(stateCheckTimer)
+
+  stateCheckTimer = setTimeout(() => {
+    checkPanelState()
+  }, 100) // 100ms 防抖
+}
 
 /**
  * 设置面板展开状态监听器（带防抖）
@@ -77,11 +164,23 @@ function setupPanelObserver() {
   const rootEl = document.querySelector(props.rootSelector) as HTMLElement
   if (!rootEl) return
 
-  panelObserver = new MutationObserver(() => {
-    // 只有翻译过才需要恢复
-    if (!isTranslated.value) return
+  // 找到 header 按钮
+  const headerBtn =
+    rootEl.querySelector('button[data-test-id="thoughts-header-button"]') ||
+    rootEl.querySelector('button[aria-label*="thoughts"]') ||
+    rootEl.querySelector('button[aria-label*="思路"]') ||
+    rootEl.querySelector('.mat-expansion-panel-header')
 
-    // 防抖：避免频繁触发
+  // 监听整个 root 的变化
+  panelObserver = new MutationObserver(() => {
+    // 先更新状态，然后再决定是否恢复翻译
+    if (stateCheckTimer) clearTimeout(stateCheckTimer)
+    checkPanelState()
+
+    // 只有翻译过且面板展开才需要恢复
+    if (!isTranslated.value || !isPanelExpanded.value) return
+
+    // 防抖：避免频繁触发翻译恢复
     if (debounceTimer) clearTimeout(debounceTimer)
 
     debounceTimer = setTimeout(() => {
@@ -89,11 +188,25 @@ function setupPanelObserver() {
     }, DEBOUNCE_MS)
   })
 
+  // 监听 root 的所有变化，包括属性变化
   panelObserver.observe(rootEl, {
     childList: true,
     subtree: true,
     attributes: true,
+    attributeFilter: ['aria-expanded', 'class', 'style'],
   })
+
+  // 如果找到了 header 按钮，额外监听它的属性变化
+  if (headerBtn) {
+    const headerObserver = new MutationObserver(() => {
+      debouncedCheckPanelState()
+    })
+
+    headerObserver.observe(headerBtn, {
+      attributes: true,
+      attributeFilter: ['aria-expanded', 'class'],
+    })
+  }
 }
 
 /**
@@ -144,6 +257,7 @@ function restoreTranslation() {
 
   const textNodes = extractTextNodes(contentEl)
   let restoredCount = 0
+  let allTranslated = true
 
   textNodes.forEach((node) => {
     const originalText = node.textContent || ''
@@ -151,11 +265,20 @@ function restoreTranslation() {
     if (cachedTranslation && cachedTranslation !== originalText) {
       node.textContent = cachedTranslation
       restoredCount++
+    } else if (!cachedTranslation) {
+      // 如果有任何节点没有缓存翻译，则不算完全翻译
+      allTranslated = false
     }
   })
 
   if (restoredCount > 0) {
     console.log(`Gemini Pro Max: 已从缓存恢复 ${restoredCount} 条翻译`)
+
+    // 如果所有内容都已翻译（从缓存恢复），隐藏按钮
+    if (allTranslated && textNodes.length > 0) {
+      isFullyTranslated.value = true
+      console.log('Gemini Pro Max: 所有内容已翻译，隐藏按钮')
+    }
   }
 }
 
@@ -223,6 +346,7 @@ const handleTranslate = async () => {
     })
 
     isTranslated.value = true
+    isFullyTranslated.value = true // 标记为完全翻译，隐藏按钮
     console.log(
       `Gemini Pro Max: 翻译完成，新翻译 ${toTranslate.length} 条，从缓存恢复 ${texts.length - toTranslate.length} 条`,
     )
@@ -241,7 +365,7 @@ const handleTranslate = async () => {
   border: 1px solid #dadce0;
   border-radius: 4px;
   padding: 4px 8px;
-  font-family: 'Google Sans', sans-serif;
+  font-family: 'Google Sans Flex', 'Google Sans', 'Helvetica Neue', sans-serif;
   font-size: 12px;
   color: #1a73e8;
   cursor: pointer;

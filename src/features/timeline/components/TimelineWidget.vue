@@ -34,7 +34,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 
 interface TimelineItem {
   id: string
@@ -75,11 +75,27 @@ const scrollToItem = (id: string) => {
 
 // Exposed API for parent content-script
 const updateItems = (newItems: TimelineItem[]) => {
+  const previousItems = items.value
   items.value = newItems
 
-  // 1. 如果变为空列表，自动折叠
-  if (newItems.length === 0) {
-    isCollapsed.value = true
+  // Smart sync: Always select the last item when conversation changes
+  if (newItems.length > 0) {
+    // Check if the list has changed (different conversation)
+    const listChanged =
+      previousItems.length !== newItems.length ||
+      previousItems.length === 0 ||
+      !previousItems.every((item, idx) => newItems[idx]?.id === item.id)
+
+    // If conversation changed, always select the last item
+    if (listChanged) {
+      const lastItem = newItems[newItems.length - 1]
+      activeItemId.value = lastItem.id
+
+      // Auto-scroll to the bottom (latest item)
+      nextTick(() => {
+        scrollToItem(lastItem.id)
+      })
+    }
   }
 }
 
