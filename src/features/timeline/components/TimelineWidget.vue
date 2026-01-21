@@ -19,6 +19,7 @@
           :key="item.id"
           class="timeline-entry"
           :class="{ active: activeItemId === item.id }"
+          :title="item.text"
           @click="scrollToItem(item.id)"
         >
           <div class="entry-index">{{ String(index + 1).padStart(2, '0') }}</div>
@@ -33,7 +34,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 
 interface TimelineItem {
   id: string
@@ -44,8 +45,23 @@ const items = ref<TimelineItem[]>([])
 const isCollapsed = ref(true) // 默认折叠
 const activeItemId = ref<string>('')
 
+const STORAGE_KEY = 'gemini_timeline_collapsed'
+
+onMounted(() => {
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get(STORAGE_KEY, (result) => {
+      if (result[STORAGE_KEY] !== undefined) {
+        isCollapsed.value = result[STORAGE_KEY] as boolean
+      }
+    })
+  }
+})
+
 const toggleCollapse = () => {
   isCollapsed.value = !isCollapsed.value
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.set({ [STORAGE_KEY]: isCollapsed.value })
+  }
 }
 
 const scrollToItem = (id: string) => {
@@ -59,16 +75,11 @@ const scrollToItem = (id: string) => {
 
 // Exposed API for parent content-script
 const updateItems = (newItems: TimelineItem[]) => {
-  const wasEmpty = items.value.length === 0
   items.value = newItems
 
   // 1. 如果变为空列表，自动折叠
   if (newItems.length === 0) {
     isCollapsed.value = true
-  }
-  // 2. 如果是从“无”到“有”，或者用户希望它出现时，自动展开
-  else if (wasEmpty && newItems.length > 0) {
-    isCollapsed.value = false
   }
 }
 

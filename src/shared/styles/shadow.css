@@ -11,9 +11,9 @@
   line-height: 1.5;
 
   position: fixed;
-  top: 80px;
-  right: 20px;
-  width: 240px;
+  top: 135px;
+  right: 24px;
+  width: 200px;
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -43,8 +43,33 @@
 }
 
 .gemini-timeline-root.collapsed .timeline-body {
-  opacity: 0;
-  pointer-events: none;
+  /* opacity: 0; REMOVED to keep it visible */
+  /* pointer-events: none; REMOVED to allow clicking */
+  visibility: visible;
+}
+
+.gemini-timeline-root.collapsed .entry-content {
+  display: none;
+}
+
+.gemini-timeline-root.collapsed .entry-index {
+  margin-right: 0;
+  width: 100%;
+  text-align: center;
+  font-size: 11px;
+}
+
+.gemini-timeline-root.collapsed .timeline-entry {
+  padding: 8px 4px;
+  justify-content: center;
+  border-left: none; /* specific border logic mostly handled by active class, but let's clear it */
+}
+
+/* Ensure active indicator works in collapsed mode */
+.gemini-timeline-root.collapsed .timeline-entry.active {
+  border-left: 2px solid #3b82f6; /* Restore border or use background? */
+  /* center border? no, left border is fine if padding handles it, or maybe bottom border? */
+  /* Let's keep it simple: background is already there */
 }
 
 .gemini-timeline-root.collapsed .title {
@@ -107,7 +132,8 @@
 }
 
 .scroll-container {
-  max-height: 500px;
+  /* Use viewport units for better max-height responsiveness */
+  max-height: 60vh;
   overflow-y: auto;
   padding: 8px 0;
 }
